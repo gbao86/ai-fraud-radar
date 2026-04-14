@@ -20,21 +20,26 @@ Dự án mô phỏng một hệ thống bảo mật rủi ro ngân hàng / thanh
    * Sử dụng tập dữ liệu hành vi giao dịch tài chính **PaySim** với hơn **6.3 triệu mẫu dữ liệu** (Volume).
    * Huấn luyện mô hình **Gradient Boosted Trees (GBT)** trên môi trường tính toán phân tán (Apache Spark), thực hiện các kỹ thuật tiền xử lý phức tạp: *Imputer, OneHotEncoder, VectorAssembler và StringIndexer.*
    * **Đặc biệt:** Đã xử lý thành công hiện tượng rò rỉ dữ liệu (Data Leakage) có sẵn trong tập dữ liệu mô phỏng, đưa mô hình về sát với thực tế ngành tài chính. Mô hình đạt độ chính xác (Accuracy) **99.40%**, Recall **85.04%** và AUC Score **0.9959**.
-   
-   ![Accuracy, Recall and AUC Score](./1.png)
 
+   ![Accuracy, Recall and AUC Score](./1.png)
 
 2. **Distributed Streaming (Spark Structured Streaming)**
    * Chịu trách nhiệm tiêu thụ và xử lý dòng dữ liệu liên tục chảy vào hệ thống (Velocity) mô phỏng các log giao dịch đang diễn ra.
    * Áp dụng trực tiếp mô hình AI đã được huấn luyện trích xuất từ giai đoạn trước để đánh giá, phân loại xem một giao dịch là "An toàn" hay "Gian lận" ngay trong quá trình micro-batching.
 
+   ![Spark Structured Streaming](./5.png)
+
 3. **Middleware & Data Sink (Upstash Redis Cloud)**
    * Các phát hiện bất thường từ Spark cluster ngay lập tức được đẩy sang hệ thống **Upstash Redis Cloud** qua REST API (Ghi vào danh sách `momo_fraud_list` và cập nhật biến `total_fraud_count`).
    * Bước này sử dụng Redis làm hệ thống Cache tốc độ cao, đóng vai trò trạm trung chuyển (Decoupling) chuyên biệt nhằm giảm tải cho Big Data Engine và giúp Frontend dễ dàng lấy dữ liệu.
 
+   ![Upstash Redis Cloud](./6.png)
+
 4. **Real-time Visualization (Next.js & Server-Sent Events)**
    * Dùng **Server-Sent Events (SSE)** độc quyền của giao thức HTTP kết hợp API Router từ **Next.js** để đẩy các cảnh báo mới nhất từ Redis lên Dashboard của người dùng theo chu kỳ (3 giây/lần), đảm bảo dữ liệu "sống" (Real-time).
    * Trực quan hoá tự động các chỉ số kỹ thuật: *Dòng tiền rủi ro, Phân loại hình thức giao dịch (CASH_OUT, TRANSFER, v.v.) và Cập nhật bảng chi tiết giao dịch liên tục mà không cần Re-load trang web.*
+
+   ![Next.js & SSE](./2.gif)
 
 ---
 
