@@ -56,7 +56,7 @@ Hệ thống kết hợp nhuần nhuyễn giữa kiến trúc phần mềm Data 
 
 ---
 
-## 🚀 Hướng dấn khởi chạy Frontend (Local Development)
+## 🚀 Hướng dẫn khởi chạy Frontend (Local Development)
 
 ### Bước 1. Cấu hình môi trường Web
 Tạo một đoạn file mang tên `.env.local` tại thư mục gốc của project (cùng cấp với `package.json`) và nhập thông tin kết nối Upstash:
