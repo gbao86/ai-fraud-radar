@@ -1,17 +1,26 @@
 # 🛡️ AI FRAUD RADAR: Hệ thống Big Data Phát hiện Gian lận thời gian thực
 
-**AI Fraud Radar** là đồ án chuyên ngành **Big Data**, tập trung vào việc xây dựng một hệ thống (Pipeline) xử lý dữ liệu toàn diện: từ quá trình huấn luyện mô hình học máy trên tập dữ liệu lịch sử cực lớn, đến việc xử lý luồng dữ liệu thời gian thực (Real-time Streaming) và hiển thị trực quan các cảnh báo gian lận trên nền tảng web hiện đại.
+**AI Fraud Radar** là đồ án môn học **Big Data**, tập trung vào việc xây dựng một hệ thống (Pipeline) xử lý dữ liệu toàn diện: từ quá trình huấn luyện mô hình học máy trên tập dữ liệu lịch sử cực lớn, đến việc xử lý luồng dữ liệu thời gian thực (Real-time Streaming) và hiển thị trực quan các cảnh báo gian lận trên nền tảng web hiện đại.
+![AI Fraud Radar Dashboard 1](./2.png)
+![AI Fraud Radar Dashboard 2](./3.png)
 
 ---
+## 📋 Yêu cầu hệ thống (Prerequisites)
+* Node.js (v18 trở lên)
+* Tài khoản Upstash Redis (để lấy URL và Token)
+* Tài khoản Kaggle (để chạy môi trường PySpark phân tán)
+* Dataset: [PaySim Synthetic Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
 
 ## 🏗️ Kiến trúc Hệ thống (Big Data Architecture)
 
 Dự án mô phỏng một hệ thống bảo mật rủi ro ngân hàng / thanh toán hiện đại với 4 giai đoạn cốt lõi:
 
 1. **Big Data Training (Kaggle Notebook / Spark Cluster)**
-   * Sử dụng tập dữ liệu hành vi giao dịch tài chính **PaySim** với hơn **6.3 triệu mẫu dữ liệu giao dịch** (Volume).
-   * Huấn luyện mô hình **Random Forest Classifier** trên môi trường tính toán phân tán (Apache Spark), thực hiện các kỹ thuật tiền xử lý dữ liệu phức tạp chuẩn Big Data: *Imputer (xử lý giá trị thiếu), StandardScaler (chuẩn hóa dữ liệu), VectorAssembler và StringIndexer (mã hóa biến phân loại).*
-   * Kết quả, mô hình AI đạt độ chính xác cực kỳ cao: **98.42%** và chỉ số AUC-ROC đạt **0.9913**.
+   * Sử dụng tập dữ liệu hành vi giao dịch tài chính **PaySim** với hơn **6.3 triệu mẫu dữ liệu** (Volume).
+   * Huấn luyện mô hình **Gradient Boosted Trees (GBT)** trên môi trường tính toán phân tán (Apache Spark), thực hiện các kỹ thuật tiền xử lý phức tạp: *Imputer, OneHotEncoder, VectorAssembler và StringIndexer.*
+   * **Đặc biệt:** Đã xử lý thành công hiện tượng rò rỉ dữ liệu (Data Leakage) có sẵn trong tập dữ liệu mô phỏng, đưa mô hình về sát với thực tế ngành tài chính. Mô hình đạt độ chính xác (Accuracy) **99.40%**, Recall **85.04%** và AUC Score **0.9959**.
+   ![Accuracy, Recall and AUC Score](./1.png)
+
 
 2. **Distributed Streaming (Spark Structured Streaming)**
    * Chịu trách nhiệm tiêu thụ và xử lý dòng dữ liệu liên tục chảy vào hệ thống (Velocity) mô phỏng các log giao dịch đang diễn ra.
@@ -57,6 +66,12 @@ Hệ thống kết hợp nhuần nhuyễn giữa kiến trúc phần mềm Data 
 ---
 
 ## 🚀 Hướng dẫn khởi chạy Frontend (Local Development)
+
+### Bước 0: Khởi chạy Data Pipeline & Streaming Engine (Kaggle)
+1. Truy cập vào Kaggle Notebook chứa mã nguồn PySpark của dự án.
+2. Đảm bảo đã import tập dữ liệu **PaySim**.
+3. Run All các Cell để mô hình bắt đầu đọc Stream và đẩy dữ liệu lên Upstash Redis.
+*(Lưu ý: Giữ tab Kaggle luôn mở để luồng dữ liệu không bị ngắt).*
 
 ### Bước 1. Cấu hình môi trường Web
 Tạo một đoạn file mang tên `.env.local` tại thư mục gốc của project (cùng cấp với `package.json`) và nhập thông tin kết nối Upstash:

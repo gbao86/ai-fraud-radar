@@ -6,34 +6,62 @@ import {
   CategoryScale, LinearScale, PointElement, LineElement,
   BarElement, ArcElement, Title, Tooltip, Legend, Filler, ScatterController,
 } from 'chart.js';
-import { Line, Bar, Doughnut, Scatter } from 'react-chartjs-2';
+import { Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
   BarElement, ArcElement, Title, Tooltip, Legend, Filler, ScatterController
 );
 
-// --- HELPERS ---
-function fmtVND(n: number): string {
-  return (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+// =======================
+// FORMAT TIỀN
+// =======================
+function fmtCurrency(n: number): string {
+  if (!n) return '$0.00';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2 
+  }).format(n);
 }
 
+// =======================
+// TYPES & INTERFACES
+// =======================
 const TYPES = ['CASH_OUT', 'TRANSFER', 'DEBIT', 'CASH_IN'] as const;
 type TxType = typeof TYPES[number];
 
 interface FraudRecord {
-  time: string; sender: string; receiver: string;
-  type: TxType; amount: number; balance: number; risk: number;
+  time: string; 
+  sender: string; 
+  receiver: string;
+  type: TxType; 
+  amount: number; 
+  balance: number; 
+  score: number;
+  risk: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
-// --- STATIC DATA (Đánh giá mô hình - Giữ nguyên vì đây là hằng số sau khi train) ---
-const FEATURE_LABELS = ['amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest','type_CASHOUT','step','isFlaggedFraud'];
-const FEATURE_VALS   = [0.38, 0.22, 0.18, 0.09, 0.07, 0.03, 0.02, 0.01];
-const ROC_FPR = [0,0.01,0.02,0.04,0.06,0.08,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.80,1.0];
-const ROC_TPR = [0,0.72,0.84,0.90,0.93,0.95,0.96,0.97,0.98,0.988,0.992,0.995,0.997,0.999,1.0];
+// =======================
+// STYLE RISK BADGES
+// =======================
+function getRiskStyle(risk: string) {
+  switch (risk) {
+    case 'HIGH':
+      return { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: '🔴 HIGH' };
+    case 'MEDIUM':
+      return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: '🟠 MED' };
+    default:
+      return { color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: '🟢 SAFE' };
+  }
+}
 
+// =======================
+// CHART OPTIONS
+// =======================
 const BASE_OPTS = {
-  maintainAspectRatio: false as const,
+  responsive: true,
+  maintainAspectRatio: false,
   plugins: { legend: { display: false } },
   scales: {
     y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 11 } } },
@@ -41,6 +69,9 @@ const BASE_OPTS = {
   },
 };
 
+// =======================
+// MAIN COMPONENT
+// =======================
 export default function FraudRadarDashboard() {
   const [mounted, setMounted] = useState(false);
   const [fraudLog, setFraudLog] = useState<FraudRecord[]>([]);
@@ -48,59 +79,72 @@ export default function FraudRadarDashboard() {
   const [clock, setClock] = useState('--:--:--');
   const [status, setStatus] = useState<'CONNECTING' | 'LIVE' | 'OFFLINE'>('CONNECTING');
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // KẾT NỐI SSE (Lấy dữ liệu thật từ Upstash)
+  // =======================
+  // SSE CONNECTION
+  // =======================
   useEffect(() => {
     if (!mounted) return;
     let es: EventSource;
-
     const connect = () => {
       es = new EventSource('/api/fraud-stream');
-      
       es.onmessage = (e) => {
         try {
           const p = JSON.parse(e.data);
-          // Cập nhật danh sách từ Redis
-          if (p.latestFrauds) setFraudLog(p.latestFrauds);
-          // Cập nhật tổng số ca từ Redis
+          if (p.latestFrauds) {
+            // Sắp xếp mặc định cho Bảng: Score cao xếp trước
+            const sorted = p.latestFrauds.sort((a: FraudRecord, b: FraudRecord) => b.score - a.score);
+            setFraudLog(sorted);
+          }
           if (p.totalCount !== undefined) setTotalCount(p.totalCount);
           setStatus('LIVE');
-        } catch (err) {
-          console.error("Lỗi parse dữ liệu:", err);
-        }
+        } catch (err) { console.error("Lỗi parse:", err); }
       };
-
       es.onerror = () => {
         setStatus('OFFLINE');
         es.close();
-        setTimeout(connect, 5000); // Thử kết nối lại sau 5s
+        setTimeout(connect, 5000);
       };
     };
-
     connect();
     return () => es?.close();
   }, [mounted]);
 
-  // Đồng hồ hệ thống
   useEffect(() => {
     if (!mounted) return;
     const t = setInterval(() => setClock(new Date().toTimeString().slice(0, 8)), 1000);
     return () => clearInterval(t);
   }, [mounted]);
 
-  // --- DỮ LIỆU BIỂU ĐỒ (Dựa hoàn toàn vào fraudLog từ Redis) ---
+  // =======================
+  // CHART DATA (ĐÃ FIX LỖI TIME)
+  // =======================
+  
+  // 🌟 Tách riêng một mảng được xếp theo thứ tự Thời gian (Cũ -> Mới) để vẽ Line Chart chuẩn
+  const timeSortedLog = useMemo(() => {
+    return [...fraudLog].sort((a, b) => a.time.localeCompare(b.time));
+  }, [fraudLog]);
+
   const lineData = useMemo(() => ({
-    labels: fraudLog.map(d => d.time).reverse(),
+    labels: timeSortedLog.map(d => d.time), // Không cần .reverse() nữa
     datasets: [{
-      label: 'Giá trị rủi ro',
-      data: fraudLog.map(d => d.amount).reverse(),
+      label: 'Risk Score (%)',
+      data: timeSortedLog.map(d => (d.score * 100).toFixed(2)),
       borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',
       fill: true, tension: 0.4, pointRadius: 4, borderWidth: 2,
     }],
-  }), [fraudLog]);
+  }), [timeSortedLog]);
+
+  const amountLineData = useMemo(() => ({
+    labels: timeSortedLog.map(d => d.time),
+    datasets: [{
+      label: 'Amount (USD)',
+      data: timeSortedLog.map(d => d.amount),
+      borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+      fill: true, tension: 0.4, pointRadius: 4, borderWidth: 2,
+    }],
+  }), [timeSortedLog]);
 
   const donutData = useMemo(() => {
     const counts: any = { CASH_OUT: 0, TRANSFER: 0, DEBIT: 0, CASH_IN: 0 };
@@ -118,14 +162,14 @@ export default function FraudRadarDashboard() {
   if (!mounted) return <div style={{ background: '#08090f', minHeight: '100vh' }} />;
 
   return (
-    <div style={{ background: '#08090f', minHeight: '100vh', color: '#e2e8f0', padding: 20, fontFamily: "sans-serif" }}>
+    <div suppressHydrationWarning style={{ background: '#08090f', minHeight: '100vh', color: '#e2e8f0', padding: 20, fontFamily: "sans-serif" }}>
       <div style={{ maxWidth: 1600, margin: '0 auto' }}>
         
         {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: 20, marginBottom: 20 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 900 }}>AI FRAUD <span style={{ color: '#ef4444' }}>RADAR</span> REAL-TIME</h1>
-            <p style={{ color: '#64748b', fontSize: 12 }}>Data source: Upstash Redis (Cloud) | Model: Random Forest</p>
+            <p style={{ color: '#64748b', fontSize: 12 }}>Data source: Upstash Redis (Cloud) | Model: Gradient Boosted Trees (GBT)</p>
           </div>
           <div style={{ textAlign: 'right' }}>
             <span style={{ 
@@ -143,35 +187,61 @@ export default function FraudRadarDashboard() {
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 15, marginBottom: 20 }}>
           <div className="card">
-            <p style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase' }}>Tổng ca gian lận</p>
+            <p className="card-title">Tổng ca gian lận</p>
             <h2 style={{ fontSize: 32, color: '#ef4444' }}>{totalCount}</h2>
           </div>
           <div className="card">
-            <p style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase' }}>Trạng thái Spark</p>
+            <p className="card-title">Trạng thái Spark</p>
             <h2 style={{ fontSize: 24, color: '#3b82f6' }}>STREAMING</h2>
           </div>
           <div className="card">
-            <p style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase' }}>Độ chính xác AI</p>
-            <h2 style={{ fontSize: 24, color: '#10b981' }}>98.42%</h2>
+            <p className="card-title">Độ chính xác AI</p>
+            <h2 style={{ fontSize: 24, color: '#10b981' }}>99.40%</h2>
           </div>
           <div className="card">
-            <p style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase' }}>Middleware</p>
+            <p className="card-title">Middleware</p>
             <h2 style={{ fontSize: 24, color: '#f59e0b' }}>KAFKA/REDIS</h2>
           </div>
         </div>
 
+        {/* CHARTS LAYOUT */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 20 }}>
-          <div className="card" style={{ height: 350 }}>
-            <p style={{ marginBottom: 15, fontWeight: 'bold' }}>Dòng tiền rủi ro (Real-time)</p>
-            <Line data={lineData} options={BASE_OPTS} />
+          
+          {/* CỘT TRÁI */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="card" style={{ height: 280, display: 'flex', flexDirection: 'column' }}>
+              <p style={{ marginBottom: 15, fontWeight: 'bold' }}>Biến động rủi ro (Risk Score)</p>
+              <div style={{ flexGrow: 1, position: 'relative' }}>
+                 <Line data={lineData} options={BASE_OPTS} />
+              </div>
+            </div>
+            
+            <div className="card" style={{ height: 280, display: 'flex', flexDirection: 'column' }}>
+              <p style={{ marginBottom: 15, fontWeight: 'bold' }}>Dòng tiền giao dịch (Amount - USD)</p>
+              <div style={{ flexGrow: 1, position: 'relative' }}>
+                 <Line data={amountLineData} options={BASE_OPTS} />
+              </div>
+            </div>
           </div>
-          <div className="card" style={{ height: 350 }}>
+
+          {/* CỘT PHẢI */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
             <p style={{ marginBottom: 15, fontWeight: 'bold' }}>Phân loại hình thức</p>
-            <Doughnut data={donutData} options={{ cutout: '70%', plugins: { legend: { display: false } } }} />
+            <div style={{ flexGrow: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+               <Doughnut 
+                 data={donutData} 
+                 options={{ 
+                   ...BASE_OPTS, 
+                   cutout: '70%',
+                   scales: { x: { display: false }, y: { display: false } } 
+                 }} 
+               />
+            </div>
           </div>
+
         </div>
 
-        {/* TABLE DỮ LIỆU THẬT */}
+        {/* TABLE */}
         <div className="card">
           <p style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: 15 }}>🔴 NHẬT KÝ CẢNH BÁO TỪ UPSTASH CLOUD</p>
           <div style={{ overflowX: 'auto' }}>
@@ -182,24 +252,39 @@ export default function FraudRadarDashboard() {
                   <th style={{ padding: 10 }}>SENDER</th>
                   <th style={{ padding: 10 }}>HÌNH THỨC</th>
                   <th style={{ padding: 10, textAlign: 'right' }}>SỐ TIỀN</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>RỦI RO</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>ĐÁNH GIÁ RỦI RO</th>
                 </tr>
               </thead>
               <tbody>
                 {fraudLog.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Đang đợi dữ liệu từ Spark Pipeline...</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Đang đợi dữ liệu...</td></tr>
                 ) : (
-                  fraudLog.map((f, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: 10, color: '#ef4444', fontFamily: 'monospace' }}>{f.time}</td>
-                      <td style={{ padding: 10 }}>{f.sender}</td>
-                      <td style={{ padding: 10 }}><span style={{ background: '#1e293b', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>{f.type}</span></td>
-                      <td style={{ padding: 10, textAlign: 'right', fontWeight: 'bold', color: '#f59e0b' }}>{fmtVND(f.amount)}</td>
-                      <td style={{ padding: 10, textAlign: 'center' }}>
-                        <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{f.risk || 98}%</span>
-                      </td>
-                    </tr>
-                  ))
+                  fraudLog.map((f, i) => {
+                    const r = getRiskStyle(f.risk);
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: 10, color: '#ef4444', fontFamily: 'monospace' }}>{f.time}</td>
+                        <td style={{ padding: 10 }}>{f.sender}</td>
+                        <td style={{ padding: 10 }}><span style={{ background: '#1e293b', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>{f.type}</span></td>
+                        <td style={{ padding: 10, textAlign: 'right', fontWeight: 'bold', color: '#f59e0b' }}>{fmtCurrency(f.amount)}</td>
+                        <td style={{ padding: 10, textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <span style={{ 
+                              color: r.color, 
+                              background: r.bg, 
+                              padding: '2px 8px', 
+                              borderRadius: 4, 
+                              fontSize: 10, 
+                              fontWeight: 'bold' 
+                            }}>
+                              {r.label}
+                            </span>
+                            <span style={{ color: '#64748b', fontSize: 11 }}>{(f.score * 100).toFixed(1)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -208,7 +293,8 @@ export default function FraudRadarDashboard() {
 
       </div>
       <style jsx>{`
-        .card { background: #141622; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; }
+        .card { background: #141622; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; overflow: hidden; }
+        .card-title { color: #64748b; fontSize: 10px; text-transform: uppercase; margin-bottom: 5px; }
       `}</style>
     </div>
   );
