@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛡️ AI FRAUD RADAR: Hệ thống Big Data Phát hiện Gian lận thời gian thực
 
-## Getting Started
+**AI Fraud Radar** là đồ án chuyên ngành **Big Data**, tập trung vào việc xây dựng một hệ thống (Pipeline) xử lý dữ liệu toàn diện: từ quá trình huấn luyện mô hình học máy trên tập dữ liệu lịch sử cực lớn, đến việc xử lý luồng dữ liệu thời gian thực (Real-time Streaming) và hiển thị trực quan các cảnh báo gian lận trên nền tảng web hiện đại.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🏗️ Kiến trúc Hệ thống (Big Data Architecture)
+
+Dự án mô phỏng một hệ thống bảo mật rủi ro ngân hàng / thanh toán hiện đại với 4 giai đoạn cốt lõi:
+
+1. **Big Data Training (Kaggle Notebook / Spark Cluster)**
+   * Sử dụng tập dữ liệu hành vi giao dịch tài chính **PaySim** với hơn **6.3 triệu mẫu dữ liệu giao dịch** (Volume).
+   * Huấn luyện mô hình **Random Forest Classifier** trên môi trường tính toán phân tán (Apache Spark), thực hiện các kỹ thuật tiền xử lý dữ liệu phức tạp chuẩn Big Data: *Imputer (xử lý giá trị thiếu), StandardScaler (chuẩn hóa dữ liệu), VectorAssembler và StringIndexer (mã hóa biến phân loại).*
+   * Kết quả, mô hình AI đạt độ chính xác cực kỳ cao: **98.42%** và chỉ số AUC-ROC đạt **0.9913**.
+
+2. **Distributed Streaming (Spark Structured Streaming)**
+   * Chịu trách nhiệm tiêu thụ và xử lý dòng dữ liệu liên tục chảy vào hệ thống (Velocity) mô phỏng các log giao dịch đang diễn ra.
+   * Áp dụng trực tiếp mô hình AI đã được huấn luyện trích xuất từ giai đoạn trước để đánh giá, phân loại xem một giao dịch là "An toàn" hay "Gian lận" ngay trong quá trình micro-batching.
+
+3. **Middleware & Data Sink (Upstash Redis Cloud)**
+   * Các phát hiện bất thường từ Spark cluster ngay lập tức được đẩy sang hệ thống **Upstash Redis Cloud** qua REST API (Ghi vào danh sách `momo_fraud_list` và cập nhật biến `total_fraud_count`).
+   * Bước này sử dụng Redis làm hệ thống Cache tốc độ cao, đóng vai trò trạm trung chuyển (Decoupling) chuyên biệt nhằm giảm tải cho Big Data Engine và giúp Frontend dễ dàng lấy dữ liệu.
+
+4. **Real-time Visualization (Next.js & Server-Sent Events)**
+   * Dùng **Server-Sent Events (SSE)** độc quyền của giao thức HTTP kết hợp API Router từ **Next.js** để đẩy các cảnh báo mới nhất từ Redis lên Dashboard của người dùng theo chu kỳ (3 giây/lần), đảm bảo dữ liệu "sống" (Real-time).
+   * Trực quan hoá tự động các chỉ số kỹ thuật: *Dòng tiền rủi ro, Phân loại hình thức giao dịch (CASH_OUT, TRANSFER, v.v.) và Cập nhật bảng chi tiết giao dịch liên tục mà không cần Re-load trang web.*
+
+---
+
+## 📊 Đặc trưng Big Data trong dự án (4V)
+
+| Đặc trưng | Hiện thực hoá trong dự án của hệ thống |
+| :--- | :--- |
+| **Volume (Dữ liệu lớn)** | Khả năng huấn luyện trên tập dữ liệu tổng PaySim lên tới hàng gigabyte với hơn 6.3 triệu bản ghi giao dịch phức tạp. |
+| **Velocity (Tốc độ)** | Triển khai Spark Streaming và Server-Sent Events quét Redis liên tục 3s/lần, mang lại xung nhịp phản hồi chỉ tính bằng mili-giây. |
+| **Veracity (Độ tin chắc)** | Tối ưu độ chính xác thông qua các thông số của mô hình đánh giá AI (Random Forest) với Precision/Recall được kiểm chứng. |
+| **Value (Giá trị)** | Biến dữ liệu thô và log streaming thành Dashboard cảnh báo sớm, cung cấp hệ thống ra quyết định theo thời gian thực để ngăn chặn chuyển tiền gian lận. |
+
+---
+
+## 🛠️ Trụ cột Công nghệ (Tech Stack)
+
+Hệ thống kết hợp nhuần nhuyễn giữa kiến trúc phần mềm Data Engineering, Machine Learning và nền tảng Frontend Web thông qua:
+
+* **Big Data Engine & AI Models:**
+  * Apache Spark, PySpark Structured Streaming.
+  * SparkML Lib (Xây dựng Model Random Forest Classifier và hệ Pipeline tiền xử lý phân tán).
+* **Cloud Infrastructure (Middleware):**
+  * **Upstash Redis**: Nền tảng Serverless Redis hỗ trợ tốc độ cao cho Data Sink.
+  * Nền tảng luồng dữ liệu liên tục: Trạm phát giao dịch chuẩn JSON/CSV log.
+* **Frontend Dashboard (Dự án trong kho lưu trữ này):**
+  * **Next.js (Pages Router)** kết hợp **React 19**
+  * **TypeScript**: Đảm bảo chặt chẽ kiểu dữ liệu cho toàn bộ code interface.
+  * **Tailwind CSS v4**: Framework CSS thiết kế giao diện Dark-mode mang tính thẩm mỹ cao.
+  * **Chart.js** & **react-chartjs-2**: Render linh động luồng dữ liệu thành hình ảnh biểu đồ thời gian thực.
+
+---
+
+## 🚀 Hướng dấn khởi chạy Frontend (Local Development)
+
+### Bước 1. Cấu hình môi trường Web
+Tạo một đoạn file mang tên `.env.local` tại thư mục gốc của project (cùng cấp với `package.json`) và nhập thông tin kết nối Upstash:
+```env
+UPSTASH_REDIS_REST_URL="https://your-database-url.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your-access-token"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Bước 2. Cài đặt các biến phụ thuộc (Dependencies)
+```bash
+# Sử dụng NPM để cài đặt tất cả các gói nền tảng front-end cần thiết
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Bước 3. Khởi động Server Dashboard
+```bash
+# Khởi cộng ứng dụng tại chế độ lập trình viên
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+💡 **Truy cập:** Mở trình duyệt web và điều hướng tới: `http://localhost:3000`
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Ngay sau khi mở liên kết, hệ thống Dashboard sẽ tự động thiết lập kết nối tới Redish Cloud qua luồng dữ liệu liên tục. Khi trạng thái chuyển sang **🟢 LIVE**, các cảnh báo rủi ro về "Dòng tiền" mới nhất từ Apache Spark tự động được hiển thị.
