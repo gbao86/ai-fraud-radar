@@ -1,11 +1,7 @@
 # 🛡️ AI FRAUD RADAR: Hệ thống Big Data Phát hiện Gian lận thời gian thực
 
 ![AI Fraud Radar Dashboard 1](./2.gif)
-<<<<<<< HEAD
 ![AI Fraud Radar Dashboard 2](./4.png)
-=======
-![AI Fraud Radar Dashboard 2](./3.png) 
->>>>>>> ef73ffd5f3c2c1d5e15288927b86725128582e1b
 
 **AI Fraud Radar** là đồ án môn học **Big Data**, tập trung vào việc xây dựng một hệ thống (Pipeline) xử lý dữ liệu toàn diện: từ quá trình huấn luyện mô hình học máy trên tập dữ liệu lịch sử cực lớn, đến việc xử lý luồng dữ liệu thời gian thực (Real-time Streaming) và hiển thị trực quan các cảnh báo gian lận trên nền tảng web hiện đại.
 
