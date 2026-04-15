@@ -1,0 +1,36 @@
+name: gbao86-BigData-CI-CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code từ Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Thiết lập Node.js v18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: 📦 Cài đặt thư viện (Dependencies)
+        run: npm install
+
+      - name: 🧪 Chạy Unit Test (Mốc 15/04)
+        env:
+          UPSTASH_REDIS_REST_URL: "https://mock-redis-jisy.upstash.io"
+          UPSTASH_REDIS_REST_TOKEN: "mock-token-123"
+        run: npm test
+
+      - name: 🏗️ Build thử ứng dụng (Kiểm tra lỗi Compile)
+        env:
+          UPSTASH_REDIS_REST_URL: "https://mock-redis-jisy.upstash.io"
+          UPSTASH_REDIS_REST_TOKEN: "mock-token-123"
+        run: npm run build
