@@ -49,7 +49,7 @@ Dự án mô phỏng một hệ thống bảo mật rủi ro ngân hàng / thanh
 | :--- | :--- |
 | **Volume (Dữ liệu lớn)** | Khả năng huấn luyện trên tập dữ liệu tổng PaySim lên tới hàng gigabyte với hơn 6.3 triệu bản ghi giao dịch phức tạp. |
 | **Velocity (Tốc độ)** | Triển khai Spark Streaming và Server-Sent Events quét Redis liên tục 3s/lần, mang lại xung nhịp phản hồi chỉ tính bằng mili-giây. |
-| **Veracity (Độ tin chắc)** | Tối ưu độ chính xác thông qua các thông số của mô hình đánh giá AI (Random Forest) với Precision/Recall được kiểm chứng. |
+| **Veracity (Độ tin chắc)** | Tối ưu độ chính xác thông qua các thông số của mô hình đánh giá AI (Gradient Boosted Trees) với Precision/Recall được kiểm chứng. |
 | **Value (Giá trị)** | Biến dữ liệu thô và log streaming thành Dashboard cảnh báo sớm, cung cấp hệ thống ra quyết định theo thời gian thực để ngăn chặn chuyển tiền gian lận. |
 
 ---
@@ -60,7 +60,7 @@ Hệ thống kết hợp nhuần nhuyễn giữa kiến trúc phần mềm Data 
 
 * **Big Data Engine & AI Models:**
   * Apache Spark, PySpark Structured Streaming.
-  * SparkML Lib (Xây dựng Model Random Forest Classifier và hệ Pipeline tiền xử lý phân tán).
+  * SparkML Lib (Xây dựng Model Gradient Boosted Trees và hệ Pipeline tiền xử lý phân tán).
 * **Cloud Infrastructure (Middleware):**
   * **Upstash Redis**: Nền tảng Serverless Redis hỗ trợ tốc độ cao cho Data Sink.
   * Nền tảng luồng dữ liệu liên tục: Trạm phát giao dịch chuẩn JSON/CSV log.
